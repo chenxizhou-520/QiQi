@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奇奇 - 你的科学学习小伙伴</title>
+    <!-- 全部文件都放在同一个文件夹里，不依赖任何外部网站（国内访问更稳定）-->
+    <script src="marked.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); height: 100vh; overflow: hidden; display: flex; justify-content: center; }
+        .chat-container { width: 100%; max-width: 800px; height: 100vh; background: rgba(255, 255, 255, 0.95); display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(0,0,0,0.1); }
+        .chat-header { background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%); padding: 20px; display: flex; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); color: white; }
+        .seed-avatar { width: 80px; height: 80px; background: rgba(255, 152, 0, 0.85); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 50px; margin-right: 20px; animation: pulse 2s infinite; border: 3px solid rgba(255, 255, 255, 0.3); }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; }
+        .message { margin-bottom: 20px; display: flex; align-items: flex-start; }
+        .message-avatar { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; margin-right: 12px; flex-shrink: 0; background: #ff9800; }
+        .message-content { background: white; padding: 15px 20px; border-radius: 20px; max-width: 75%; box-shadow: 0 3px 10px rgba(0,0,0,0.1); border: 2px solid #e8f5e9; line-height: 1.6; word-break: break-word; }
+        .message-content p { margin-bottom: 8px; }
+        .message-content p:last-child { margin-bottom: 0; }
+        .user-message { flex-direction: row-reverse; }
+        .user-message .message-content { background: #81c784; color: white; margin-right: 12px; }
+        .speak-btn { display: inline-block; margin-top: 10px; background: #e8f5e9; color: #2e7d32; border: none; border-radius: 15px; padding: 4px 12px; font-size: 14px; cursor: pointer; }
+        .speak-btn:hover { background: #c8e6c9; }
+
+        .input-area { background: white; border-top: 2px solid #e8f5e9; }
+        .tools { padding: 10px 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: #666; min-height: 34px; }
+        .tools label { cursor: pointer; white-space: nowrap; user-select: none; }
+        .tools button { background: none; border: none; color: #43a047; cursor: pointer; font-size: 13px; }
+        .who { color: #43a047; cursor: pointer; white-space: nowrap; }
+        #hint { color: #e65100; text-align: right; }
+        .input-container { padding: 10px 20px 12px; display: flex; gap: 12px; }
+        #messageInput { flex: 1; border: none; background: #f5f5f5; padding: 15px 20px; border-radius: 25px; font-size: 16px; outline: none; }
+        .send-button { background: #43a047; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; cursor: pointer; font-size: 20px; flex-shrink: 0; }
+        .send-button:disabled { background: #bdbdbd; cursor: not-allowed; }
+        .privacy-note { padding: 0 20px 12px; font-size: 12px; color: #9e9e9e; }
+
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 20px; }
+        .overlay-box { background: white; border-radius: 20px; padding: 28px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+        .overlay-box h3 { margin-bottom: 12px; color: #2e7d32; }
+        .overlay-box p { margin-bottom: 8px; color: #555; line-height: 1.5; }
+        .overlay-box input { width: 100%; border: 2px solid #c8e6c9; border-radius: 15px; padding: 12px 16px; font-size: 18px; text-align: center; outline: none; margin-bottom: 12px; }
+        .overlay-box button { background: #43a047; color: white; border: none; border-radius: 20px; padding: 10px 28px; font-size: 16px; cursor: pointer; }
+        .overlay-box button:disabled { background: #bdbdbd; }
+        .code-error { color: #e53935; font-size: 13px; margin-top: 8px; min-height: 18px; }
+    </style>
+</head>
+<body>
+    <div class="overlay" id="startOverlay">
+        <div class="overlay-box">
+            <h3>🔬 欢迎来到奇奇的科学实验室</h3>
+            <div id="passRow">
+                <p>请输入老师告诉你的口令：</p>
+                <input type="password" id="passInput" maxlength="64" autocomplete="off" />
+            </div>
+            <p>请输入老师给你的编号：<br><small>（不要输入自己的真实姓名哦）</small></p>
+            <input type="text" id="codeInput" maxlength="32" placeholder="例如 A01" autocomplete="off" />
+            <button id="startBtn">开始 🌟</button>
+            <div class="code-error" id="startError"></div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="seed-avatar">🔬</div>
+            <div>
+                <h2>奇奇</h2>
+                <p>STEAM 小学科学实验室助手</p>
+            </div>
+        </div>
+        <div class="messages" id="messages">
+            <div class="message">
+                <div class="message-avatar">🔬</div>
+                <div class="message-content">
+                    <p>嗨！我是奇奇！☀️ 很高兴能和你一起探索科学的奥秘。在这里，我不止能回答你的问题，还能带你发现生活中的科学之美和奇妙的英语单词。你想探索哪里呢？</p>
+                    <p>🧪 物质的变化　🌿 生命的奥秘　🌍 地球与宇宙　🏗️ 建筑与结构　⚙️ 工程小发明</p>
+                </div>
+            </div>
+        </div>
+        <div class="input-area">
+            <div class="tools">
+                <label id="autoReadLabel"><input type="checkbox" id="autoRead" /> 🔊 自动朗读奇奇的回答</label>
+                <span class="who" id="who" title="点击更换编号"></span>
+                <button id="exportBtn" style="display:none">📥 导出本机记录</button>
+                <span id="hint"></span>
+            </div>
+            <div class="input-container">
+                <input type="text" id="messageInput" maxlength="300" placeholder="问问奇奇你想知道的科学问题吧..." />
+                <button class="send-button" id="sendButton">➤</button>
+            </div>
+            <div class="privacy-note">你和奇奇的对话会被保存下来，用于科学学习研究。请不要输入自己的真实姓名、电话、家庭住址等个人信息。</div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        // ===== 设置 =====
+        const AUTO_READ_DEFAULT = false;   // 默认是否自动朗读回答
+        const HISTORY_MESSAGES = 12;       // 每次发给模型的最近消息条数（越少越省免费额度）
+        const MAX_RETRIES = 8;             // 模型忙（排队）时最多自动重试次数
+        const LOG_TZ = 'Asia/Shanghai';
+        const LOG_BATCH = 3;               // 攒够几轮对话后上传一次
+        const LOG_MAX_WAIT_MS = 90 * 1000; // 最迟多久上传一次
+
+        const CFG = window.QIQI_CONFIG || {};
+
+        const SYSTEM_PROMPT = [
+            "你叫奇奇，是一个面向中国小学生（以三至六年级为主）的STEAM科学教学陪伴机器人。",
+            "核心任务：引导学生学习小学科学课程，内容范围包括：",
+            "- 物质科学：水、空气、声音、光、热、力与运动、电与磁、简单机械、物质的变化；",
+            "- 生命科学：植物、动物、人体、生态系统、微生物、生物与环境；",
+            "- 地球与宇宙科学：天气与气候、岩石与土壤、地球的运动、月相、太阳系；",
+            "- 技术与工程：材料、结构、设计与制作、工程思维；",
+            "- 建筑与结构（技术与工程领域的重点内容）：",
+            "  · 认识建筑：常见建筑物的种类和用途（住宅、学校、桥梁、塔、体育馆等），建筑如何满足人们的需要；",
+            "  · 建筑材料：木材、砖、石、钢材、钢筋混凝土、玻璃等的特点，以及为什么不同的地方选用不同的材料；",
+            "  · 结构与稳定：地基、柱、梁、框架、墙；三角形、拱形的受力特点；重心和底面积与稳定性；形状和厚度如何影响抗弯曲能力；",
+            "  · 桥梁与高塔：梁桥、拱桥、悬索桥、斜拉桥的特点；怎样把塔建得更高更稳；",
+            "  · 安全与舒适：抗震、抗风，保温隔热、采光通风，绿色节能建筑；",
+            "  · 中国传统建筑：榫卯、斗拱、赵州桥、故宫、四合院、客家土楼、苏州园林等中的科学智慧；",
+            "  · 建筑设计与工程步骤：明确需求和限制条件，画设计图，用纸、吸管、积木、冰棒棍等安全材料制作模型，测试、发现问题、改进；",
+            "  · 建筑与数学、艺术：几何形状、对称、比例，以及建筑的美感。",
+            "- 科学探究方法：提出问题、做出猜想、设计实验、控制变量、观察记录、得出结论。",
+            "性格要求：童真、友善、博学、耐心。",
+            "教学策略：",
+            "1. 采用苏格拉底式引导：不要直接给出完整答案，而是解释一部分事实后提出一个启发性问题；学生答错时先肯定其思考，再引导修正。",
+            "2. STEAM结合：涉及科学知识时，顺带提及相关的英语词汇（如 Photosynthesis、Gravity、Evaporation），或引导学生观察生活中的艺术美感与工程设计。",
+            "3. 知识背景：严格遵循中国小学科学课程标准（2022年版）和常见小学科学教材内容；根据学生的年级和提问调整难度，年级不清楚时可以友好地问一问；不确定时坦诚说明，并建议向老师请教。",
+            "4. 安全：涉及动手实验时，提醒在老师或家长陪同下进行；不介绍涉及明火、危险化学品、家用电源等有危险的操作。建筑相关的动手活动只建议制作小模型，使用纸张、吸管、积木、冰棒棍、胶带等安全材料，不建议使用热熔胶枪、锋利刀具，不建议攀爬或在真实的建筑、脚手架、工地上做实验；提醒学生不要进入施工现场。",
+            "4.1 建筑教学方法：讨论建筑问题时，多让学生先预测再验证（例如“你觉得三角形和四边形哪个更不容易变形？可以用吸管和胶带做一做”），引导学生说出自己的设计想法和原因，并鼓励他们在测试后改进设计，体会“设计—制作—测试—改进”的工程过程；结合学生熟悉的身边建筑（教室、桥、高楼、家乡的古建筑）提问。",
+            "5. 道德准则：若学生输入辱骂等不当内容，必须温和指出并引导回学习话题；若学生提到被伤害或感到很难过，温和地鼓励其告诉老师或家长等信任的大人。",
+            "6. 与科学学习无关的话题，友好地引导回科学话题。",
+            "7. 语言：以中文为主，英语为辅；每次回答简短（一般不超过200字），语气活泼，可适当使用表情符号。"
+        ].join("\n");
+
+        // ===== 小工具 =====
+        const $ = (id) => document.getElementById(id);
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        function ssGet(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }
+        function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+        function ssDel(k) { try { sessionStorage.removeItem(k); } catch (e) {} }
+        function newSessionId() {
+            try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+            return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        }
+        function b64ToBytes(b64) {
+            const bin = atob(b64);
+            const out = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+            return out;
+        }
+
+        // 把 AI 的回答里可能有的危险代码去掉后再显示
+        function sanitizeHtml(html) {
+            const tpl = document.createElement('template');
+            tpl.innerHTML = html;
+            tpl.content.querySelectorAll('script,iframe,object,embed,style,link,meta,base,form').forEach((n) => n.remove());
+            tpl.content.querySelectorAll('*').forEach((el) => {
+                Array.from(el.attributes).forEach((attr) => {
+                    const name = attr.name.toLowerCase();
+                    const val = attr.value.trim().toLowerCase();
+                    if (name.startsWith('on') || ((name === 'href' || name === 'src' || name === 'xlink:href') && /^(javascript|data|vbscript):/.test(val))) {
+                        el.removeAttribute(attr.name);
+                    }
+                });
+                if (el.tagName === 'A') { el.setAttribute('target', '_blank'); el.setAttribute('rel', 'noopener noreferrer'); }
+            });
+            return tpl.innerHTML;
+        }
+        function renderMarkdown(text) { return sanitizeHtml(marked.parse(text)); }
+
+        // ===== 状态 =====
+        const sessionId = newSessionId();
+        const startedISO = new Date().toISOString();
+        let secrets = null;       // 解密后的密钥，只放在内存里
+        let participant = '';
+        let chatHistory = [];
+        let busy = false;
+
+        const overlay = $('startOverlay');
+        const passRow = $('passRow');
+        const passInput = $('passInput');
+        const codeInput = $('codeInput');
+        const startBtn = $('startBtn');
+        const startError = $('startError');
+        const input = $('messageInput');
+        const sendButton = $('sendButton');
+        const hintEl = $('hint');
+        const whoEl = $('who');
+        const autoRead = $('autoRead');
+        autoRead.checked = AUTO_READ_DEFAULT;
+
+        function showHint(text, ms) {
+            hintEl.textContent = text || '';
+            if (text && ms) setTimeout(() => { if (hintEl.textContent === text) hintEl.textContent = ''; }, ms);
+        }
+
+        // ===== 开始：口令解密密钥 + 输入编号 =====
+        async function decryptSecrets(passcode, enc) {
+            const te = new TextEncoder();
+            const keyMat = await crypto.subtle.importKey('raw', te.encode(passcode), 'PBKDF2', false, ['deriveKey']);
+            const key = await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: b64ToBytes(enc.salt), iterations: enc.iter, hash: 'SHA-256' },
+                keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+            const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(enc.iv) }, key, b64ToBytes(enc.data));
+            return JSON.parse(new TextDecoder().decode(plain));
+        }
+
+        // 二维码里可以带口令（#k=口令），这样学生只需要输入编号
+        function readHashPass() {
+            const m = /[#&]k=([^&]+)/.exec(location.hash || '');
+            if (!m) return '';
+            let v = '';
+            try { v = decodeURIComponent(m[1]); } catch (e) {}
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+            return v;
+        }
+
+        let savedPass = readHashPass();
+        if (savedPass) ssSet('qiqi_pass', savedPass); else savedPass = ssGet('qiqi_pass');
+
+        async function startSession() {
+            const code = codeInput.value.trim();
+            const pass = savedPass || passInput.value.trim();
+            if (!/^[A-Za-z0-9_-]{1,32}$/.test(code)) { startError.textContent = '编号只能用字母、数字、- 或 _ 哦'; return; }
+            if (!pass) { startError.textContent = '请输入老师告诉你的口令'; return; }
+            if (!window.crypto || !crypto.subtle) { startError.textContent = '请用 https:// 开头的网址打开本页面'; return; }
+            startBtn.disabled = true;
+            startError.textContent = '正在准备，请稍等…';
+            try {
+                secrets = await decryptSecrets(pass, CFG.enc);
+            } catch (e) {
+                secrets = null;
+                savedPass = '';
+                ssDel('qiqi_pass');
+                passRow.style.display = 'block';
+                startError.textContent = '口令不对，请再试一次';
+                startBtn.disabled = false;
+                return;
+            }
+            participant = code;
+            ssSet('qiqi_pass', pass);
+            ssSet('qiqi_code', code);
+            overlay.style.display = 'none';
+            whoEl.textContent = '编号 ' + participant + '（点此更换）';
+            input.focus();
+        }
+
+        startBtn.addEventListener('click', startSession);
+        passInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') startSession(); });
+        codeInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') startSession(); });
+        whoEl.addEventListener('click', () => {
+            if (!confirm('要换成另一个编号吗？页面会重新开始。')) return;
+            ssDel('qiqi_code');
+            location.reload();
+        });
+
+        if (!CFG.enc || !CFG.baseUrl || !CFG.model) {
+            startError.textContent = '页面还没有配置好，请联系研究人员。';
+            startBtn.disabled = true;
+        } else {
+            if (savedPass) passRow.style.display = 'none';
+            const savedCode = ssGet('qiqi_code');
+            if (savedPass && savedCode) { codeInput.value = savedCode; startSession(); }
+            else (savedPass ? codeInput : passInput).focus();
+        }
+
+        // ===== 朗读（浏览器自带语音，不上传任何内容）=====
+        const canSpeak = 'speechSynthesis' in window;
+        function cleanForSpeech(text) {
+            return text.replace(/[\p{Extended_Pictographic}️‍]/gu, '').replace(/[*_#`>]/g, '').replace(/\s+/g, ' ').trim();
+        }
+        function speak(text) {
+            if (!canSpeak) return;
+            speechSynthesis.cancel();
+            const clean = cleanForSpeech(text);
+            if (!clean) return;
+            const utter = new SpeechSynthesisUtterance(clean);
+            utter.lang = 'zh-CN';
+            utter.rate = 0.95;
+            const voice = speechSynthesis.getVoices().find((v) => v.lang && v.lang.replace('_', '-').toLowerCase().startsWith('zh-cn'));
+            if (voice) utter.voice = voice;
+            speechSynthesis.speak(utter);
+        }
+        if (!canSpeak) $('autoReadLabel').style.display = 'none';
+
+        // ===== 对话记录 =====
+        const gh = { issueNumber: null, pending: [], pendingSince: 0, flushing: false, retryAfter: 0 };
+
+        function csvEscape(v) { return '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"'; }
+        function localLogAppend(entry) {
+            try {
+                const arr = JSON.parse(localStorage.getItem('qiqi_log_v1') || '[]');
+                arr.push(entry);
+                localStorage.setItem('qiqi_log_v1', JSON.stringify(arr.slice(-3000)));
+            } catch (e) {}
+        }
+        function exportLocalLog() {
+            let arr = [];
+            try { arr = JSON.parse(localStorage.getItem('qiqi_log_v1') || '[]'); } catch (e) {}
+            const header = ['localTime', 'time_utc', 'participant', 'session', 'student', 'qiqi', 'status', 'ms'];
+            const rows = [header.join(',')].concat(arr.map((e) =>
+                [e.localTime, e.time, e.participant, e.session, e.student, e.qiqi, e.status, e.ms].map(csvEscape).join(',')));
+            const blob = new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'qiqi-local-chatlog.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        if (/[?&]teacher=1/.test(location.search)) {
+            $('exportBtn').style.display = 'inline';
+            $('exportBtn').addEventListener('click', exportLocalLog);
+        }
+
+        function ghHeaders() {
+            return { Authorization: 'Bearer ' + secrets.logToken, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' };
+        }
+        async function flushRemoteLogs(force) {
+            if (!secrets || !secrets.logToken || !secrets.logRepo || gh.flushing || !gh.pending.length) return;
+            gh.flushing = true;
+            const batch = gh.pending.slice();
+            try {
+                const base = 'https://api.github.com/repos/' + secrets.logRepo + '/issues';
+                if (!gh.issueNumber) {
+                    const r = await fetch(base, {
+                        method: 'POST', headers: ghHeaders(), keepalive: !!force,
+                        body: JSON.stringify({
+                            title: participant + ' | ' + sessionId.slice(0, 8),
+                            body: JSON.stringify({ type: 'session', participant: participant, session: sessionId, started: startedISO })
+                        })
+                    });
+                    if (!r.ok) throw new Error('issue ' + r.status);
+                    gh.issueNumber = (await r.json()).number;
+                }
+                const r2 = await fetch(base + '/' + gh.issueNumber + '/comments', {
+                    method: 'POST', headers: ghHeaders(), keepalive: !!force,
+                    body: JSON.stringify({ body: JSON.stringify(batch) })
+                });
+                if (!r2.ok) throw new Error('comment ' + r2.status);
+                gh.pending.splice(0, batch.length);
+                gh.pendingSince = gh.pending.length ? Date.now() : 0;
+            } catch (e) {
+                console.error('对话记录上传失败，稍后重试：', e);
+                gh.retryAfter = Date.now() + 60 * 1000;
+            } finally {
+                gh.flushing = false;
+            }
+        }
+        function maybeFlush(force) {
+            if (!gh.pending.length) return;
+            if (!force && Date.now() < gh.retryAfter) return;
+            const age = Date.now() - gh.pendingSince;
+            if (force || gh.pending.length >= LOG_BATCH || age >= LOG_MAX_WAIT_MS) flushRemoteLogs(force);
+        }
+        function logTurn(entry) {
+            localLogAppend(entry);
+            if (secrets && secrets.logToken && secrets.logRepo) {
+                if (!gh.pending.length) gh.pendingSince = Date.now();
+                gh.pending.push(entry);
+                maybeFlush(false);
+            }
+        }
+        setInterval(() => maybeFlush(false), 15000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') maybeFlush(true); });
+        window.addEventListener('pagehide', () => maybeFlush(true));
+
+        // ===== 聊天 =====
+        function addMessage(text, isUser) {
+            const container = $('messages');
+            const div = document.createElement('div');
+            div.className = 'message ' + (isUser ? 'user-message' : '');
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = isUser ? '👦' : '🔬';
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = text;
+            div.appendChild(avatar);
+            div.appendChild(content);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 调用模型；模型忙（429）或网络中断时自动重试，相当于排队
+        async function callModel(messages, onWait) {
+            const body = Object.assign({
+                model: CFG.model,
+                messages: [{ role: 'system', content: SYSTEM_PROMPT }].concat(messages),
+                temperature: 0.7,
+                max_tokens: 1200,
+                stream: true
+            }, CFG.extraBody || {});
+            let netFails = 0;
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                let resp;
+                try {
+                    resp = await fetch(CFG.baseUrl + '/chat/completions', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + secrets.llmKey, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                } catch (e) {
+                    if (++netFails > 2) throw e;
+                    onWait();
+                    await sleep(1500 + Math.random() * 1500);
+                    continue;
+                }
+                if (resp.ok) return resp;
+                if ([429, 502, 503, 504].indexOf(resp.status) >= 0 && attempt < MAX_RETRIES) {
+                    onWait();
+                    await sleep(2000 + Math.random() * 4000);
+                    continue;
+                }
+                throw new Error('API ' + resp.status);
+            }
+            throw new Error('API busy');
+        }
+
+        async function sendMessage() {
+            if (busy || !secrets || !participant) return;
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (canSpeak) speechSynthesis.cancel();
+            showHint('');
+            addMessage(text, true);
+            input.value = '';
+            chatHistory.push({ role: 'user', content: text });
+            busy = true;
+            sendButton.disabled = true;
+
+            const container = $('messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🔬';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = '奇奇正在思考…🔬';
+            div.appendChild(avatar);
+            div.appendChild(contentDiv);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+
+            const started = Date.now();
+            let aiResponse = '';
+            let status = 'ok';
+            try {
+                const response = await callModel(chatHistory.slice(-HISTORY_MESSAGES), () => {
+                    contentDiv.textContent = '奇奇在排队，马上就好…⏳';
+                });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+                        for (const rawLine of lines) {
+                            const line = rawLine.trim();
+                            if (!line.startsWith('data:') || line.indexOf('[DONE]') >= 0) continue;
+                            try {
+                                const data = JSON.parse(line.slice(5).trim());
+                                const delta = data.choices && data.choices[0] && data.choices[0].delta;
+                                if (delta && delta.content) {
+                                    aiResponse += delta.content;
+                                    contentDiv.innerHTML = renderMarkdown(aiResponse);
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                            } catch (e) { /* 忽略不完整的一行 */ }
+                        }
+                    }
+                } catch (streamErr) {
+                    if (!aiResponse) throw streamErr;
+                    status = 'partial'; // 回答说到一半断线了，保留已收到的部分
+                }
+
+                if (!aiResponse) throw new Error('空回复');
+                chatHistory.push({ role: 'assistant', content: aiResponse });
+
+                if (canSpeak) {
+                    const plain = contentDiv.textContent;
+                    const btn = document.createElement('button');
+                    btn.className = 'speak-btn';
+                    btn.textContent = '🔊 听一听';
+                    btn.addEventListener('click', () => speak(plain));
+                    contentDiv.appendChild(document.createElement('br'));
+                    contentDiv.appendChild(btn);
+                    container.scrollTop = container.scrollHeight;
+                    if (autoRead.checked) speak(plain);
+                }
+            } catch (error) {
+                console.error(error);
+                status = 'error';
+                contentDiv.textContent = '网络连接暂不稳定，请稍后重新提交你的问题。';
+                if (chatHistory.length && chatHistory[chatHistory.length - 1].role === 'user') chatHistory.pop();
+            } finally {
+                logTurn({
+                    time: new Date().toISOString(),
+                    localTime: new Date().toLocaleString('zh-CN', { timeZone: LOG_TZ }),
+                    participant: participant,
+                    session: sessionId,
+                    student: text,
+                    qiqi: aiResponse,
+                    status: status,
+                    ms: Date.now() - started,
+                    model: CFG.model
+                });
+                busy = false;
+                sendButton.disabled = false;
+                input.focus();
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    })();
+    </script>
+</body>
+</html>
