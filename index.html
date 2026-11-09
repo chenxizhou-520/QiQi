@@ -26,8 +26,8 @@
 
         .qiqi-fig { margin-top: 10px; text-align: center; }
         .qiqi-fig svg { width: 100%; max-width: 360px; height: auto; display: block; margin: 0 auto; border-radius: 10px; }
-        .qiqi-search { margin-top: 8px; font-size: 14px; color: #546e7a; }
-        .qiqi-search a { display: inline-block; margin-left: 4px; padding: 6px 12px; border-radius: 16px; background: #e8f5e9; color: #2e7d32; text-decoration: none; font-size: 14px; }
+        .qiqi-search { margin-top: 8px; }
+        .qiqi-search a { display: inline-block; padding: 6px 12px; border-radius: 16px; background: #e8f5e9; color: #2e7d32; text-decoration: none; font-size: 14px; }
         .qiqi-search a:hover { background: #c8e6c9; }
         .qiqi-fig figcaption { font-size: 12px; color: #78909c; margin-top: 4px; }
 
@@ -272,11 +272,21 @@
         // 配图：模型只能用 [[图:编号]] 引用上面这套内置插图；编号不存在就不显示
         const IMG_TAG = /\[\[\s*图\s*[:：]\s*([A-Za-z0-9_-]+)\s*\]\]/g;
         // 模型只写关键词，网址由页面自己拼（模型不能写网址），链接指向百度图片搜索，新页面打开
-        // 看图链接的网址模板：{kw} 会换成编码后的关键词。视觉中国的格式如果打不开，只需要改下面这一行
+        // 看图链接的网址模板：{kw} 会换成编码后的关键词
         const SEARCH_BAIDU = 'https://image.baidu.com/search/index?tn=baiduimage&ie=utf-8&word={kw}';
-        const SEARCH_VCG = 'https://www.vcg.com/creative-image/{kw}/';
+        // 学生明确问“……长什么样/想看……的图片”时，不依赖模型，页面自己从学生的话里取出关键词
+        function studentImageKeyword(q) {
+            if (!/(长什么样|长得什么样|长啥样|啥样|什么样子?|什么模样|样子|图片|照片|实物|看看.{1,10}图)/.test(q)) return '';
+            let k = q.replace(/[\s,，。.？?！!、~～]/g, '')
+                .replace(/(我想要看|我想看看|我想看|我要看|想看看|想看|给我看一下|给我看看|给我看|让我看一下|让我看看|让我看|看一下|看看|请问|请你|请)/g, '')
+                .replace(/(是?长得什么样子?|是?长什么样子?|是?长啥样子?|是?什么样子?|是?什么模样|是?啥样子?|样子|实物图|实物|真实的?图片|真实的?照片|图片|照片|一张|一下)/g, '')
+                .replace(/(能不能|可不可以|可以|有没有|吗|呢|吧|啊|呀)/g, '')
+                .replace(/^[的是个]+|[的是个]+$/g, '');
+            if (!k || k.length > 12 || /^(它|他|她|这|那|这个|那个|这些|那些|什么|东西)$/.test(k)) return '';
+            return k;
+        }
         const SEARCH_TAG = /\[\[\s*搜图\s*[:：]\s*([^\]\n]{1,30}?)\s*\]\]/g;
-        function renderRich(text) {
+        function renderRich(text, fallbackKw) {
             let t = text.replace(/\[\[[^\]]*\]?$/, '');            // 还没输出完整的标记先不显示
             let figId = '';
             t = t.replace(IMG_TAG, (m, id) => {
@@ -289,12 +299,11 @@
                 if (!searchKw && clean) searchKw = clean;
                 return '';
             });
+            if (!searchKw && fallbackKw) searchKw = fallbackKw;
             let html = sanitizeHtml(marked.parse(t));
             if (searchKw) {
                 const enc = encodeURIComponent(searchKw);
-                html += '<p class="qiqi-search">🔍 看看真实的图片：' + searchKw + '　'
-                    + '<a href="' + SEARCH_BAIDU.replace('{kw}', enc) + '" target="_blank" rel="noopener noreferrer">百度图片</a> '
-                    + '<a href="' + SEARCH_VCG.replace('{kw}', enc) + '" target="_blank" rel="noopener noreferrer">视觉中国</a></p>';
+                html += '<p class="qiqi-search"><a href="' + SEARCH_BAIDU.replace('{kw}', enc) + '" target="_blank" rel="noopener noreferrer">🔍 看看真实的图片：' + searchKw + '</a></p>';
             }
             if (figId) {
                 const fig = '<figure class="qiqi-fig">' + QIQI_IMAGES[figId].svg + '<figcaption>' + QIQI_IMAGES[figId].t + '</figcaption></figure>';
@@ -558,6 +567,7 @@
             addMessage(text, true);
             input.value = '';
             chatHistory.push({ role: 'user', content: text });
+            const imgKw = studentImageKeyword(text);
 
             if (SAFETY_RE.test(text)) {
                 addMessage(SAFETY_REPLY, false);
@@ -621,7 +631,7 @@
                                 const delta = data.choices && data.choices[0] && data.choices[0].delta;
                                 if (delta && delta.content) {
                                     aiResponse += delta.content;
-                                    contentDiv.innerHTML = renderRich(aiResponse);
+                                    contentDiv.innerHTML = renderRich(aiResponse, imgKw);
                                     container.scrollTop = container.scrollHeight;
                                 }
                             } catch (e) { /* 忽略不完整的一行 */ }
